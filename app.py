@@ -7,7 +7,6 @@ conn = sqlite3.connect("lol_analysis.db")
 sql_query = "SELECT r.Champion, r.Difficulty, COALESCE(b.Bili_Top5_Views, 0) AS Views FROM riot_stats r LEFT JOIN bili_hot_champs b ON r.champion = b.champion "
 df = pd.read_sql(sql_query, conn)
 
-pd.read_sql
 st.title("🏆 LOL Data Dashboard")
 st.write("欢迎来到我的数据看板！这里将展示英雄联盟的数据分析结果。")
 
