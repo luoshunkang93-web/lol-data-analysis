@@ -40,4 +40,5 @@ jobs:
         git add lol_analysis.db
         # 如果有变化才提交，没变化就不提交
         git commit -m "🚨 Auto-update database data" || exit 0
+        git pull --rebase origin main  # <--- 🆕 加这行！(意思是：提交前先拉取最新代码)
         git push
