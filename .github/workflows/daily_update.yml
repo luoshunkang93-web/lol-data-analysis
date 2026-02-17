@@ -30,6 +30,8 @@ jobs:
 
     # 4. 运行你的爬虫脚本！
     - name: Run Update Script
+      env: # <--- 新增部分
+        DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
       run: python update_db.py
 
     # 5. 把更新后的数据库存回仓库 (Commit & Push)
