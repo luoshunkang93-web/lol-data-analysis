@@ -3,10 +3,11 @@ import pandas as pd
 import sqlite3
 import time
 import random
+from datetime import datetime  # <--- [变化1] 引入时间库
 
 # 1. 初始化数据库
 conn = sqlite3.connect('lol_analysis.db')
-print("🚀 [Backend] Starting Data Pipeline...")
+print(f"🚀 [Backend] Starting Data Pipeline at {datetime.now()}...")
 
 # ==========================================
 # 📦 步骤 A: 获取 Riot 英雄数据 (主表)
@@ -25,20 +26,25 @@ try:
     difficulty_list = []
     target_champs = [] 
     
+    # 获取今天的日期字符串，例如 "2024-02-18"
+    today_str = datetime.now().strftime("%Y-%m-%d")
+
     for en_name, data in champ_data.items():
-        # 这里有一步很重要：提取我们需要的数据
         difficulty_list.append({
             "Champion": data['name'],
             "Difficulty": data['info']['difficulty'],
-            "Tags": ",".join(data['tags'])
+            "Tags": ",".join(data['tags']),
+            "source": "riot",
+            "scrape_date": today_str # <--- [变化2] 给数据打上时间戳
         })
-        # 准备给 B 站爬虫用的名单
         target_champs.append({"name": data['name']})
 
     # 存入 riot_stats 表
     df_riot = pd.DataFrame(difficulty_list)
-    df_riot.to_sql('riot_stats', conn, if_exists='replace', index=False)
-    print(f"✅ Riot Data Updated! Total Champions: {len(df_riot)}")
+    
+    # <--- [变化3] 关键修改：改成 'append' (追加模式)
+    df_riot.to_sql('riot_stats', conn, if_exists='append', index=False)
+    print(f"✅ Riot Data Appended! Total Champions: {len(df_riot)}")
 
 except Exception as e:
     print(f"❌ Riot Error: {e}")
@@ -48,9 +54,7 @@ except Exception as e:
 # ==========================================
 print("\n🕵️‍♂️ [2/2] Fetching Bilibili View Counts...")
 
-# ⚠️ 关键修改：我们要跑全量数据了！
-# 为了防止被封 IP，我们还是先只跑前 10 个测试一下自动化流程
-# 等以后确定没问题了，再把 [:10] 去掉
+# 这里的逻辑和之前一样，暂时跑前10个做测试
 demo_champs = target_champs[:10] 
 
 bili_stats = []
@@ -64,14 +68,13 @@ for i, champ in enumerate(demo_champs):
     print(f"   Searching {i+1}/{len(demo_champs)}: {search_keyword}...", end="\r")
     
     try:
-        # 随机休眠 0.5~1.5 秒，模拟人类行为
         time.sleep(random.uniform(0.5, 1.5))
         
         url = "https://api.bilibili.com/x/web-interface/search/type"
         params = {
             "keyword": f"LOL {search_keyword}", 
             "search_type": "video", 
-            "order": "click" # 按点击量排序
+            "order": "click"
         }
         
         resp = requests.get(url, headers=headers, params=params, timeout=5)
@@ -79,28 +82,29 @@ for i, champ in enumerate(demo_champs):
         if resp.status_code == 200:
             data = resp.json()
             total_views = 0
-            # 只取前 5 个视频的播放量总和
             if data['code'] == 0 and 'result' in data['data']:
                 video_list = data['data']['result']
                 for v in video_list[:5]:
-                    # B站API有时候返回 'play' 有时候返回 'view'
                     views = v.get('play') if 'play' in v else v.get('stat', {}).get('view', 0)
                     total_views += int(views)
             
             bili_stats.append({
                 "Champion": champ['name'],
-                "Bili_Top5_Views": total_views
+                "Bili_Top5_Views": total_views,
+                "scrape_date": today_str # <--- [变化4] B站数据也要打时间戳
             })
             
     except Exception as e:
         print(f"\n   ⚠️ Error fetching {search_keyword}: {e}")
 
 # 存入 bili_hot_champs 表
-df_bili = pd.DataFrame(bili_stats)
-# 注意：这里用 'replace' 会覆盖旧数据，这正是我们想要的“更新”
-df_bili.to_sql('bili_hot_champs', conn, if_exists='replace', index=False)
-
-print(f"\n✅ Bilibili Data Updated! Processed {len(df_bili)} champions.")
+if bili_stats:
+    df_bili = pd.DataFrame(bili_stats)
+    # <--- [变化5] 关键修改：改成 'append'
+    df_bili.to_sql('bili_hot_champs', conn, if_exists='append', index=False)
+    print(f"\n✅ Bilibili Data Appended! Processed {len(df_bili)} champions.")
+else:
+    print("\n⚠️ No Bilibili data fetched.")
 
 conn.close()
-print("🎉 All Done! Database is fresh.")
+print("🎉 All Done! History preserved.")
