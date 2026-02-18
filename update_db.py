@@ -3,17 +3,30 @@ import pandas as pd
 import sqlite3
 import time
 import random
-import os  # <--- [新] 用于读取环境变量
+import os
+import logging  # <--- [新] 引入日志库
 from datetime import datetime
 
 # ==========================================
-# 🔔 新增功能：发送 Discord 通知
+# ⚙️ 配置日志 (Logging Setup) - 核心部分！
+# ==========================================
+# 1. 设置日志格式：时间 - 级别 - 消息
+# 2. level=logging.INFO 意味着：只要是 INFO 及以上的消息都记录
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
+)
+logger = logging.getLogger(__name__) # 获取一个记录器
+
+# ==========================================
+# 🔔 Discord 通知函数 (保持不变)
 # ==========================================
 def send_discord_notification(message):
-    webhook_url = os.environ.get("DISCORD_WEBHOOK") # 从环境变量获取秘密
+    webhook_url = os.environ.get("DISCORD_WEBHOOK")
     
     if not webhook_url:
-        print("⚠️ No Discord Webhook found. Skipping notification.")
+        logger.warning("⚠️ No Discord Webhook found. Skipping notification.") # [修改] print -> logger.warning
         return
 
     data = {
@@ -24,26 +37,29 @@ def send_discord_notification(message):
     try:
         response = requests.post(webhook_url, json=data)
         if response.status_code == 204:
-            print("✅ Discord notification sent!")
+            logger.info("✅ Discord notification sent!") # [修改] print -> logger.info
         else:
-            print(f"❌ Failed to send Discord notification: {response.status_code}")
+            logger.error(f"❌ Failed to send Discord notification: {response.status_code}") # [修改] print -> logger.error
     except Exception as e:
-        print(f"❌ Error sending notification: {e}")
+        logger.error(f"❌ Error sending notification: {e}")
 
 # ==========================================
-# 🚀 主程序开始
+# 🚀 主程序
 # ==========================================
 
-# 1. 初始化数据库
+# 1. 初始化
+# 这里的 logs 会自动带上时间戳，不用你自己写 datetime.now() 了
+logger.info("🚀 [Backend] Starting Data Pipeline...") 
+
 conn = sqlite3.connect('lol_analysis.db')
-print(f"🚀 [Backend] Starting Data Pipeline at {datetime.now()}...")
 
-try: # <--- [新] 加上大大的 try...except 包裹整个流程，为了捕获错误
-    
+try:
     # --- Part A: Riot Data ---
-    print("\n📥 [1/2] Fetching Riot Champion Data...")
+    logger.info("📥 [1/2] Fetching Riot Champion Data...") # [修改]
+    
     VERSION_URL = "https://ddragon.leagueoflegends.com/api/versions.json"
     latest_version = requests.get(VERSION_URL).json()[0]
+    
     CHAMP_URL = f"https://ddragon.leagueoflegends.com/cdn/{latest_version}/data/zh_CN/champion.json"
     champ_data = requests.get(CHAMP_URL).json()['data']
 
@@ -63,11 +79,12 @@ try: # <--- [新] 加上大大的 try...except 包裹整个流程，为了捕获
 
     df_riot = pd.DataFrame(difficulty_list)
     df_riot.to_sql('riot_stats', conn, if_exists='append', index=False)
-    print(f"✅ Riot Data Appended! Count: {len(df_riot)}")
+    logger.info(f"✅ Riot Data Appended! Count: {len(df_riot)}") # [修改]
 
     # --- Part B: Bilibili Data ---
-    print("\n🕵️‍♂️ [2/2] Fetching Bilibili View Counts...")
-    demo_champs = target_champs[:10] # 依然只跑前10个测试
+    logger.info("🕵️‍♂️ [2/2] Fetching Bilibili View Counts...") # [修改]
+    
+    demo_champs = target_champs[:10]
     bili_stats = []
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
@@ -76,7 +93,10 @@ try: # <--- [新] 加上大大的 try...except 包裹整个流程，为了捕获
 
     for i, champ in enumerate(demo_champs):
         search_keyword = champ['name']
+        # 注意：这里我们只打印 DEBUG 级别的信息，或者为了简洁，可以不打印进度条，或者每10个打印一次
+        # 为了演示，我们先保留 print (logging 也可以混用，但最好统一)
         print(f"   Searching {i+1}/{len(demo_champs)}: {search_keyword}...", end="\r")
+        
         try:
             time.sleep(random.uniform(0.5, 1.5))
             url = "https://api.bilibili.com/x/web-interface/search/type"
@@ -97,24 +117,24 @@ try: # <--- [新] 加上大大的 try...except 包裹整个流程，为了捕获
                     "Bili_Top5_Views": total_views,
                     "scrape_date": today_str
                 })
-        except Exception:
-            pass 
+        except Exception as e:
+            # 这里的 exc_info=True 是专业细节！它会把具体的报错行号也打印出来
+            logger.warning(f"⚠️ Error fetching {search_keyword}: {e}", exc_info=False) 
 
     if bili_stats:
         df_bili = pd.DataFrame(bili_stats)
         df_bili.to_sql('bili_hot_champs', conn, if_exists='append', index=False)
-        print(f"\n✅ Bilibili Data Appended! Processed {len(df_bili)} champions.")
+        logger.info(f"✅ Bilibili Data Appended! Processed {len(df_bili)} champions.") # [修改]
     
     conn.close()
     
-    # ✅ 如果走到这里没报错，发送成功消息
     success_msg = f"🎉 **Daily Update Success!**\nDate: {today_str}\nRiot Champs: {len(df_riot)}\nBilibili Data: {len(bili_stats)}"
     send_discord_notification(success_msg)
-    print("🎉 All Done!")
+    logger.info("🎉 All Done! Pipeline finished successfully.") # [修改]
 
 except Exception as e:
-    # ❌ 如果中间任何地方报错，发送失败消息
     error_msg = f"🚨 **Daily Update FAILED!**\nError: {str(e)}"
     send_discord_notification(error_msg)
-    print(f"❌ Critical Error: {e}")
-    raise e # 让 GitHub Action 依然显示红色失败
+    # exc_info=True 会打印出非常详细的错误堆栈，方便你找 Bug
+    logger.error("❌ Critical Pipeline Error", exc_info=True) 
+    raise e
