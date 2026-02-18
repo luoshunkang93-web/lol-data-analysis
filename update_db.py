@@ -4,29 +4,29 @@ import sqlite3
 import time
 import random
 import os
-import logging  # <--- [新] 引入日志库
+import logging
 from datetime import datetime
 
 # ==========================================
-# ⚙️ 配置日志 (Logging Setup) - 核心部分！
+# ⚙️ Logging Configuration
 # ==========================================
-# 1. 设置日志格式：时间 - 级别 - 消息
-# 2. level=logging.INFO 意味着：只要是 INFO 及以上的消息都记录
+# Configure logging format: Time - Level - Message
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
     datefmt='%Y-%m-%d %H:%M:%S'
 )
-logger = logging.getLogger(__name__) # 获取一个记录器
+# Initialize Logger
+logger = logging.getLogger(__name__)
 
 # ==========================================
-# 🔔 Discord 通知函数 (保持不变)
+# 🔔 Discord Notification Helper
 # ==========================================
 def send_discord_notification(message):
     webhook_url = os.environ.get("DISCORD_WEBHOOK")
     
     if not webhook_url:
-        logger.warning("⚠️ No Discord Webhook found. Skipping notification.") # [修改] print -> logger.warning
+        logger.warning("⚠️ No Discord Webhook found. Skipping notification.")
         return
 
     data = {
@@ -37,25 +37,24 @@ def send_discord_notification(message):
     try:
         response = requests.post(webhook_url, json=data)
         if response.status_code == 204:
-            logger.info("✅ Discord notification sent!") # [修改] print -> logger.info
+            logger.info("✅ Discord notification sent!")
         else:
-            logger.error(f"❌ Failed to send Discord notification: {response.status_code}") # [修改] print -> logger.error
+            logger.error(f"❌ Failed to send Discord notification: {response.status_code}")
     except Exception as e:
         logger.error(f"❌ Error sending notification: {e}")
 
 # ==========================================
-# 🚀 主程序
+# 🚀 Main Execution Flow
 # ==========================================
 
-# 1. 初始化
-# 这里的 logs 会自动带上时间戳，不用你自己写 datetime.now() 了
 logger.info("🚀 [Backend] Starting Data Pipeline...") 
 
+# Initialize Database Connection
 conn = sqlite3.connect('lol_analysis.db')
 
 try:
-    # --- Part A: Riot Data ---
-    logger.info("📥 [1/2] Fetching Riot Champion Data...") # [修改]
+    # --- Part A: Riot Data Pipeline ---
+    logger.info("📥 [1/2] Fetching Riot Champion Data...")
     
     VERSION_URL = "https://ddragon.leagueoflegends.com/api/versions.json"
     latest_version = requests.get(VERSION_URL).json()[0]
@@ -79,12 +78,12 @@ try:
 
     df_riot = pd.DataFrame(difficulty_list)
     df_riot.to_sql('riot_stats', conn, if_exists='append', index=False)
-    logger.info(f"✅ Riot Data Appended! Count: {len(df_riot)}") # [修改]
+    logger.info(f"✅ Riot Data Appended! Count: {len(df_riot)}")
 
-    # --- Part B: Bilibili Data ---
-    logger.info("🕵️‍♂️ [2/2] Fetching Bilibili View Counts...") # [修改]
+    # --- Part B: Bilibili Data Pipeline ---
+    logger.info("🕵️‍♂️ [2/2] Fetching Bilibili View Counts...")
     
-    demo_champs = target_champs[:10]
+    demo_champs = target_champs[:10] # For demo purposes, limit to 10
     bili_stats = []
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
@@ -93,8 +92,7 @@ try:
 
     for i, champ in enumerate(demo_champs):
         search_keyword = champ['name']
-        # 注意：这里我们只打印 DEBUG 级别的信息，或者为了简洁，可以不打印进度条，或者每10个打印一次
-        # 为了演示，我们先保留 print (logging 也可以混用，但最好统一)
+        # Logging progress (optional, using print for simple progress bar effect)
         print(f"   Searching {i+1}/{len(demo_champs)}: {search_keyword}...", end="\r")
         
         try:
@@ -118,23 +116,23 @@ try:
                     "scrape_date": today_str
                 })
         except Exception as e:
-            # 这里的 exc_info=True 是专业细节！它会把具体的报错行号也打印出来
-            logger.warning(f"⚠️ Error fetching {search_keyword}: {e}", exc_info=False) 
+            logger.warning(f"⚠️ Error fetching {search_keyword}: {e}") 
 
     if bili_stats:
         df_bili = pd.DataFrame(bili_stats)
         df_bili.to_sql('bili_hot_champs', conn, if_exists='append', index=False)
-        logger.info(f"✅ Bilibili Data Appended! Processed {len(df_bili)} champions.") # [修改]
+        logger.info(f"✅ Bilibili Data Appended! Processed {len(df_bili)} champions.")
     
     conn.close()
     
+    # Send Success Notification
     success_msg = f"🎉 **Daily Update Success!**\nDate: {today_str}\nRiot Champs: {len(df_riot)}\nBilibili Data: {len(bili_stats)}"
     send_discord_notification(success_msg)
-    logger.info("🎉 All Done! Pipeline finished successfully.") # [修改]
+    logger.info("🎉 All Done! Pipeline finished successfully.")
 
 except Exception as e:
+    # Send Failure Notification
     error_msg = f"🚨 **Daily Update FAILED!**\nError: {str(e)}"
     send_discord_notification(error_msg)
-    # exc_info=True 会打印出非常详细的错误堆栈，方便你找 Bug
     logger.error("❌ Critical Pipeline Error", exc_info=True) 
     raise e
