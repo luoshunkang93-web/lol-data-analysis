@@ -1,46 +1,46 @@
 name: Daily Data Update 🤖
 
-# 触发条件：什么时候运行？
+# Trigger: Define when this workflow runs
 on:
   schedule:
-    # 每天 UTC 时间凌晨 0 点 (北京时间早上 8 点) 运行
+    # Run at 00:00 UTC daily (which is morning in China/US)
     - cron: '0 0 * * *'
-  workflow_dispatch: # 允许你手动点击按钮运行 (方便测试)
+  workflow_dispatch: # Allows manual triggering from GitHub Actions tab for testing
 
 jobs:
   update_data:
-    runs-on: ubuntu-latest # 使用最新的 Linux 系统
+    runs-on: ubuntu-latest # Use the latest Ubuntu environment
 
     steps:
-    # 1. 把代码拉取下来
+    # 1. Checkout the repository content
     - name: Checkout code
       uses: actions/checkout@v3
 
-    # 2. 安装 Python
+    # 2. Setup Python environment
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
         python-version: '3.9'
 
-    # 3. 安装依赖库 (根据 requirements.txt)
+    # 3. Install Python dependencies
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
 
-    # 4. 运行你的爬虫脚本！
+    # 4. Execute the ETL script
     - name: Run Update Script
-      env: # <--- 新增部分
+      env: 
         DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
       run: python update_db.py
 
-    # 5. 把更新后的数据库存回仓库 (Commit & Push)
+    # 5. Commit and push the updated database back to the repo
     - name: Commit and push changes
       run: |
         git config --global user.name "GitHub Action Bot"
         git config --global user.email "actions@github.com"
         git add lol_analysis.db
-        # 如果有变化才提交，没变化就不提交
+        # Only commit if there are changes; otherwise, exit gracefully
         git commit -m "🚨 Auto-update database data" || exit 0
-        git pull --rebase origin main  # <--- 🆕 加这行！(意思是：提交前先拉取最新代码)
+        git pull --rebase origin main  # Pull latest changes to avoid conflicts
         git push
