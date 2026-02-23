@@ -1,17 +1,16 @@
 import sqlite3
 import pandas as pd
 
-# 1. 连上你的真实数据库
+# 1. Connect to the local SQLite database
 db_name = 'lol_analysis.db' 
 conn = sqlite3.connect(db_name)
 
-print(f"✅ 成功连接到真实数据库: {db_name}")
+print(f"✅ Successfully connected to the database: {db_name}")
 
-# 2. 属于你自己的工业级 SQL 魔法！
-# 看到了吗？用 b 代表 B站表，用 r 代表 拳头表
+# 2. Define the advanced SQL query with double CTEs for data deduplication
 sql_query = """
 WITH Latest_Bili_Data AS (
-    -- 备菜碗 1：清洗 B 站表，只留最高播放量 (1个剑魔)
+    -- CTE 1: Clean Bilibili facts table, keeping only the max views per champion
     SELECT 
         Champion, 
         MAX(Bili_Top5_Views) AS Max_Views
@@ -19,7 +18,7 @@ WITH Latest_Bili_Data AS (
     GROUP BY Champion
 ),
 Clean_Riot_Stats AS (
-    -- 备菜碗 2：清洗 拳头表，用 DISTINCT 去掉所有重复的爬虫记录 (1个剑魔)
+    -- CTE 2: Clean Riot dimension table, removing duplicated scraped records
     SELECT DISTINCT 
         Champion, 
         Tags, 
@@ -27,12 +26,12 @@ Clean_Riot_Stats AS (
     FROM riot_stats
 )
 
--- 魔法的主查询：用极其干净的 1 对 1 进行连表！
+-- Main Query: Join the cleaned tables to generate the final top 5 ranking
 SELECT 
-    v.Champion AS '英雄名字',
-    r.Tags AS '职业定位',
-    r.Difficulty AS '操作难度',
-    v.Max_Views AS 'B站总播放量'
+    v.Champion AS 'Champion_Name',
+    r.Tags AS 'Role_Tags',
+    r.Difficulty AS 'Difficulty_Level',
+    v.Max_Views AS 'Bilibili_Total_Views'
 FROM Latest_Bili_Data v
 INNER JOIN Clean_Riot_Stats r
     ON v.Champion = r.Champion
@@ -41,17 +40,21 @@ LIMIT 5;
 """
 
 try:
-    # 3. 让 Pandas 执行你的 SQL
+    # 3. Execute the SQL query using Pandas
     real_data_df = pd.read_sql_query(sql_query, conn)
     
-    # 4. 打印出炫酷的结果！
-    print("\n🔥 你的专属 LOL 项目：B站顶流英雄揭秘 🔥")
-    print("=" * 50)
-    print(real_data_df.to_string(index=False)) # to_string(index=False) 是为了让表格更清爽
-    print("=" * 50)
+    # 4. Display the formatted results
+    print("\n🔥 Bilibili LOL Trending Champions: Top 5 🔥")
+    print("=" * 60)
+    print(real_data_df.to_string(index=False))
+    print("=" * 60)
     
 except Exception as e:
-    print("❌ 报错啦：", e)
+    # Catch and print any execution errors gracefully
+    print("❌ An error occurred during execution:")
+    print(e)
 
 finally:
+    # 5. Ensure the database connection is closed safely
     conn.close()
+    print("\n🔒 Database connection closed safely.")
