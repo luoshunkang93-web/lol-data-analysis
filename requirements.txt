@@ -1,6 +1,5 @@
-streamlit
-pandas
 requests
-openpyxl
-matplotlib
-seaborn
+pandas
+streamlit
+scikit-learn
+snowflake-connector-python[pandas]
