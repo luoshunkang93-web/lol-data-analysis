@@ -1,53 +1,33 @@
-# 🏆 LoL Champion Data Pipeline & Analytics
+# 🎮 League of Legends: End-to-End Data Analytics Pipeline
 
-[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://luo-lol-dashboard.streamlit.app)
-![Python](https://img.shields.io/badge/Python-3.9-blue)
-![Status](https://img.shields.io/badge/Pipeline-Automated-green)
+## 🚀 Project Overview
+This project is an automated, end-to-end data pipeline that scrapes, processes, and visualizes the trending League of Legends champions on Bilibili. It perfectly integrates **Data Engineering**, **Data Analytics**, and **Data Science (Machine Learning)** into a unified ecosystem.
 
-An automated End-to-End Data Engineering project that analyzes the correlation between **League of Legends** champion difficulty (Riot API) and their popularity on Bilibili (Video Views).
+## 🛠️ The "Triple-Threat" Architecture
 
-## 🚀 Live Demo
-👉 **[Click here to view the Interactive Dashboard](https://luo-lol-dashboard.streamlit.app)**
+### 1. Data Engineering (DE)
+* **Automated Web Scraping:** Python-based scrapers extract real-time viewership data from Bilibili and static champion attributes from Riot Games.
+* **Data Modeling:** Designed a Star Schema utilizing SQLite, separating dynamic metrics (Fact Table) and static attributes (Dimension Table).
+* **CI/CD Pipeline:** Scheduled via **GitHub Actions** (`daily_update.yml`) to automatically run the scraper and update the database daily.
 
----
+### 2. Data Analytics (DA)
+* **Advanced SQL:** Utilized CTEs (Common Table Expressions), Window Functions, and `JOIN`s to dynamically clean duplicate historical records and aggregate the highest viewership data.
+* **Interactive Dashboard:** Built a highly interactive web application using **Streamlit** to display the Top 5 trending champions with visually appealing bar charts.
+* **Dynamic Mapping:** Implemented professional Python dictionary mapping (`mappings.py`) to translate Chinese data into an English interface on the fly.
 
-## 🏗️ Architecture
+### 3. Data Science (DS)
+* **Predictive Modeling:** Integrated `scikit-learn` to apply **Linear Regression**.
+* **Trend Forecasting:** The model analyzes historical viewership trajectories and predicts the future popularity trends of the top-ranked champion, providing actionable business insights.
 
-This project implements a complete ETL pipeline:
+## 💻 Tech Stack
+* **Language:** Python 3.12
+* **Database:** SQLite3, Advanced SQL
+* **Data Processing:** Pandas, NumPy
+* **Machine Learning:** Scikit-Learn
+* **Frontend:** Streamlit
+* **Automation:** GitHub Actions
 
-1.  **Extraction (Extract)**: 
-    - Scrapes champion metadata from official **Riot Games API**.
-    - Scrapes video view counts from **Bilibili API**.
-2.  **Transformation (Transform)**:
-    - Cleans and merges data using **Pandas**.
-    - Adds timestamps and source tags.
-3.  **Loading (Load)**:
-    - Stores structured data into a **SQLite** database (`lol_analysis.db`).
-4.  **Automation & Monitoring**:
-    - **GitHub Actions**: Runs the pipeline automatically every day at 00:00 UTC.
-    - **Discord Webhook**: Sends real-time success/failure alerts to my device.
-5.  **Visualization**:
-    - Built with **Streamlit** to visualize Correlation (Scatter Plot) and Trend (Time Series).
-
----
-
-## 🛠️ Tech Stack
-
-* **Language**: Python 3.9
-* **Data Processing**: Pandas, Requests
-* **Database**: SQLite
-* **Frontend**: Streamlit (Cloud Deployed)
-* **DevOps**: GitHub Actions (CI/CD), Discord Webhook (Alerting)
-* **Logs**: Python Logging Module (Production-grade observability)
-
----
-
-## 📂 Project Structure
-
-```text
-├── .github/workflows  # CI/CD Configuration
-├── app.py             # Frontend Dashboard (Streamlit)
-├── update_db.py       # Backend ETL Script (The Crawler)
-├── backfill.py        # Utility script for generating mock history
-├── requirements.txt   # Python Dependencies
-└── README.md          # Project Documentation
+## ⚙️ How to Run Locally
+1. Clone the repository.
+2. Install dependencies: `pip install -r requirements.txt`
+3. Run the dashboard: `streamlit run app.py`
