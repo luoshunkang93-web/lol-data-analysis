@@ -1,130 +1,127 @@
 import streamlit as st
 import pandas as pd
 import sqlite3
+from mappings import CHAMPION_DICT
 
-# ==========================================
-# 1. Database Connection & Data Loading
-# ==========================================
-def load_data():
-    conn = sqlite3.connect('lol_analysis.db')
-    
-    # Query: Join Riot data (difficulty) with Bilibili data (views)
-    # We use the latest scrape date to show the current snapshot
-    query = """
-    SELECT 
-        r.Champion, 
-        r.Difficulty, 
-        r.Tags, 
-        b.Bili_Top5_Views as Views,
-        r.scrape_date
-    FROM riot_stats r
-    JOIN bili_hot_champs b ON r.Champion = b.Champion AND r.scrape_date = b.scrape_date
-    WHERE r.scrape_date = (SELECT MAX(scrape_date) FROM riot_stats)
-    """
-    df = pd.read_sql(query, conn)
-    conn.close()
-    return df
+# 1. Set up the dashboard title and description
+st.title("🔥 League of Legends: Bilibili Trending Insights")
+st.markdown("Powered by real web-scraped data and advanced SQL data modeling.")
 
-# Load data
-try:
-    df = load_data()
-except Exception as e:
-    st.error(f"Error loading data: {e}")
-    st.stop()
-
-# ==========================================
-# 2. Sidebar Configuration (Filters)
-# ==========================================
-st.sidebar.header("🔍 Filters")
-min_diff = st.sidebar.slider("Minimum Difficulty Level", 0, 10, 0)
-
-# Filter the dataframe based on user input
-filtered_df = df[df['Difficulty'] >= min_diff]
-
-# ==========================================
-# 3. Main Dashboard UI
-# ==========================================
-st.title("🏆 LoL Champion Data Dashboard")
-st.markdown(f"**Data Last Updated:** {df['scrape_date'].iloc[0]}")
-
-# --- Section 1: The "Traffic King" ---
-st.header("👑 The Traffic King")
-st.write("The most popular champion matching your criteria:")
-
-if not filtered_df.empty:
-    # Find the champion with max views
-    top_champ = filtered_df.loc[filtered_df['Views'].idxmax()]
-    
-    col1, col2 = st.columns(2)
-    with col1:
-        st.metric(label="Champion Name", value=top_champ['Champion'])
-    with col2:
-        st.metric(label="Total Views (Top 5 Videos)", value=f"{top_champ['Views']:,}")
-else:
-    st.warning("No champions found matching the criteria.")
-
-# --- Section 2: Scatter Plot Analysis ---
-st.markdown("---")
-st.header("📊 Correlation: Difficulty vs. Popularity")
-st.write("Does a harder champion lead to more views? Let's find out.")
-
-if not filtered_df.empty:
-    st.scatter_chart(
-        filtered_df,
-        x="Difficulty",
-        y="Views",
-        color="Difficulty", 
-        size="Views" 
-    )
-
-# --- Section 3: Raw Data Table ---
-with st.expander("📂 View Detailed Dataset"):
-    st.dataframe(filtered_df)
-
-# ==========================================
-# 4. Trend Analysis (Time Series)
-# ==========================================
-st.markdown("---")
-st.header("📈 Trend Analysis (Time Series)")
-st.write("Track the popularity trend of a specific champion over the last few days.")
-
-# Connect to DB again for historical query
+# 2. Connect to the database and execute the advanced SQL query
 conn = sqlite3.connect('lol_analysis.db')
-unique_champs = df["Champion"].unique()
-selected_champ = st.selectbox("Select a Champion to Analyze:", unique_champs)
+sql_query = """
+WITH Latest_Bili_Data AS (
+    -- CTE 1: Clean Bilibili facts table
+    SELECT Champion, MAX(Bili_Top5_Views) AS Max_Views
+    FROM bili_hot_champs
+    GROUP BY Champion
+),
+Clean_Riot_Stats AS (
+    -- CTE 2: Clean Riot dimension table
+    SELECT DISTINCT Champion, Tags, Difficulty
+    FROM riot_stats
+)
+SELECT 
+    v.Champion AS 'Champion_Name',
+    r.Tags AS 'Role_Tags',
+    r.Difficulty AS 'Difficulty_Level',
+    v.Max_Views AS 'Bilibili_Total_Views'
+FROM Latest_Bili_Data v
+INNER JOIN Clean_Riot_Stats r
+    ON v.Champion = r.Champion
+ORDER BY v.Max_Views DESC
+LIMIT 5;
+"""
 
-if selected_champ:
-    # Query historical data for the selected champion
-    sql_trend = f"""
-    SELECT 
-        r.scrape_date,
-        COALESCE(b.Bili_Top5_Views, 0) AS Views
-    FROM riot_stats r
-    LEFT JOIN bili_hot_champs b 
-        ON r.Champion = b.Champion 
-        AND r.scrape_date = b.scrape_date 
-    WHERE r.Champion = '{selected_champ}'
-    ORDER BY r.scrape_date ASC
-    """
+# 3. Fetch the cleaned DataFrame
+top5_df = pd.read_sql_query(sql_query, conn)
+conn.close()
+
+top5_df['Champion_Name'] = top5_df['Champion_Name'].map(CHAMPION_DICT).fillna(top5_df['Champion_Name'])
+
+# 4. Core DA Task: Data Visualization!
+# Split the layout into two columns for better UI
+col1, col2 = st.columns(2) 
+
+with col1:
+    st.subheader("🏆 Top 5 Champions Data")
+    # Display the raw cleaned data
+    st.dataframe(top5_df, use_container_width=True) 
+
+with col2:
+    st.subheader("📊 Total Views Bar Chart")
+    # Prepare data for the bar chart by setting the index to Champion_Name (X-axis)
+    chart_data = top5_df.set_index('Champion_Name')['Bilibili_Total_Views']
+    # Render the bar chart in one line of code!
+    st.bar_chart(chart_data)
+
+# ====================================================================
+# 🚀 Phase 3: Data Science (Machine Learning Prediction)
+# ====================================================================
+import numpy as np
+from sklearn.linear_model import LinearRegression
+
+st.divider() 
+st.subheader("🤖 Future Trend Prediction (Machine Learning)")
+st.markdown("Utilizing a **Linear Regression** model to forecast the top champion's future views based on historical scraped data.")
+
+# 1. Re-establish database connection to fetch historical data
+conn = sqlite3.connect('lol_analysis.db')
+
+# Identify the #1 champion based on all-time highest views
+top_champ_query = """
+SELECT Champion 
+FROM bili_hot_champs 
+GROUP BY Champion 
+ORDER BY MAX(Bili_Top5_Views) DESC 
+LIMIT 1
+"""
+# Fetch the Chinese name for database querying
+top_champ_raw_name = pd.read_sql_query(top_champ_query, conn).iloc[0]['Champion']
+
+# 2. Extract historical timeline for this specific champion
+history_query = f"""
+SELECT scrape_date, Bili_Top5_Views 
+FROM bili_hot_champs 
+WHERE Champion = '{top_champ_raw_name}'
+ORDER BY scrape_date ASC
+"""
+history_df = pd.read_sql_query(history_query, conn)
+conn.close()
+
+# Map the champion name to English for UI presentation
+top_champ_display_name = CHAMPION_DICT.get(top_champ_raw_name, top_champ_raw_name)
+
+# 3. Proceed with Machine Learning ONLY if we have enough historical data points
+if len(history_df) > 1:
+    # Prepare features (X) and target (y) for the model
+    # X-axis: Time sequence (0, 1, 2, 3...)
+    history_df['Time_Index'] = range(len(history_df))
+    X_train = history_df[['Time_Index']]
+    y_train = history_df['Bili_Top5_Views']
+
+    # Initialize and train the Linear Regression model
+    model = LinearRegression()
+    model.fit(X_train, y_train)
+
+    # 4. Forecast the trend for the next 3 intervals
+    future_steps = 3
+    last_index = len(history_df) - 1
+    X_future = pd.DataFrame({'Time_Index': range(last_index + 1, last_index + 1 + future_steps)})
+    y_future_pred = model.predict(X_future)
+
+    # 5. Construct a consolidated DataFrame for visualization
+    plot_data = pd.DataFrame({
+        'Actual_Views': y_train.tolist() + [np.nan] * future_steps,
+        'Predicted_Views': [np.nan] * len(history_df) + y_future_pred.tolist()
+    })
     
-    try:
-        df_trend = pd.read_sql(sql_trend, conn)
-        
-        if not df_trend.empty:
-            # Render Line Chart
-            st.line_chart(df_trend, x="scrape_date", y="Views")
-            
-            # Calculate Growth Rate
-            if len(df_trend) >= 2:
-                newest_views = df_trend.iloc[-1]['Views']
-                oldest_views = df_trend.iloc[0]['Views']
-                if oldest_views > 0:
-                    growth = ((newest_views - oldest_views) / oldest_views) * 100
-                    st.metric(label="Recent Growth Rate", value=f"{growth:.1f}%")
-        else:
-            st.warning("No historical data available for this champion.")
-            
-    except Exception as e:
-        st.error(f"Query Error: {e}")
-    finally:
-        conn.close()
+    # Bridge the gap: connect the last actual point to the first predicted point
+    plot_data.loc[last_index, 'Predicted_Views'] = plot_data.loc[last_index, 'Actual_Views']
+
+    # 6. Render the predictive line chart
+    st.write(f"📈 Predictive Growth Trajectory for **{top_champ_display_name}**")
+    st.line_chart(plot_data)
+
+else:
+    st.warning(f"⚠️ Not enough historical data for {top_champ_display_name} to run the ML model. Keep the scraper running for a few more days!")
