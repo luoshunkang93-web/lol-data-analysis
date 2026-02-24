@@ -1,127 +1,130 @@
+# app.py
 import streamlit as st
 import pandas as pd
-import sqlite3
+import snowflake.connector
+import numpy as np
+from sklearn.linear_model import LinearRegression
 from mappings import CHAMPION_DICT
 
-# 1. Set up the dashboard title and description
-st.title("🔥 League of Legends: Bilibili Trending Insights")
-st.markdown("Powered by real web-scraped data and advanced SQL data modeling.")
+# ====================================================================
+# 🚀 Phase 1: Dashboard UI Setup
+# ====================================================================
+st.title("🔥 League of Legends: Cloud-Native Insights")
+st.markdown("Powered by **Snowflake Cloud Data Warehouse** and Advanced SQL Data Modeling.")
 
-# 2. Connect to the database and execute the advanced SQL query
-conn = sqlite3.connect('lol_analysis.db')
-sql_query = """
-WITH Latest_Bili_Data AS (
-    -- CTE 1: Clean Bilibili facts table
-    SELECT Champion, MAX(Bili_Top5_Views) AS Max_Views
-    FROM bili_hot_champs
-    GROUP BY Champion
-),
-Clean_Riot_Stats AS (
-    -- CTE 2: Clean Riot dimension table
-    SELECT DISTINCT Champion, Tags, Difficulty
-    FROM riot_stats
-)
-SELECT 
-    v.Champion AS 'Champion_Name',
-    r.Tags AS 'Role_Tags',
-    r.Difficulty AS 'Difficulty_Level',
-    v.Max_Views AS 'Bilibili_Total_Views'
-FROM Latest_Bili_Data v
-INNER JOIN Clean_Riot_Stats r
-    ON v.Champion = r.Champion
-ORDER BY v.Max_Views DESC
-LIMIT 5;
-"""
+# ====================================================================
+# 🚀 Phase 2: Cloud Database Connection & Data Extraction
+# ====================================================================
+# Use Streamlit's caching mechanism to optimize cloud compute costs
+@st.cache_resource
+def init_snowflake_connection():
+    return snowflake.connector.connect(
+        user=st.secrets["snowflake"]["user"],
+        password=st.secrets["snowflake"]["password"],
+        account=st.secrets["snowflake"]["account"],
+        warehouse=st.secrets["snowflake"]["warehouse"],
+        database=st.secrets["snowflake"]["database"],
+        schema=st.secrets["snowflake"]["schema"]
+    )
 
-# 3. Fetch the cleaned DataFrame
-top5_df = pd.read_sql_query(sql_query, conn)
-conn.close()
+try:
+    conn = init_snowflake_connection()
+    
+    # Note: Double quotes are used for column names to handle case-sensitivity from Pandas export
+    sql_query = """
+    WITH Latest_Bili_Data AS (
+        SELECT "Champion", MAX("Bili_Top5_Views") AS Max_Views
+        FROM BILI_HOT_CHAMPS
+        GROUP BY "Champion"
+    ),
+    Clean_Riot_Stats AS (
+        SELECT DISTINCT "Champion", "Tags", "Difficulty"
+        FROM RIOT_STATS
+    )
+    SELECT 
+        v."Champion" AS "Champion_Name",
+        r."Tags" AS "Role_Tags",
+        r."Difficulty" AS "Difficulty_Level",
+        v.Max_Views AS "Bilibili_Total_Views"
+    FROM Latest_Bili_Data v
+    INNER JOIN Clean_Riot_Stats r
+        ON v."Champion" = r."Champion"
+    ORDER BY v.Max_Views DESC
+    LIMIT 5;
+    """
+    
+    top5_df = pd.read_sql_query(sql_query, conn)
 
-top5_df['Champion_Name'] = top5_df['Champion_Name'].map(CHAMPION_DICT).fillna(top5_df['Champion_Name'])
+    # Dictionary Mapping for English Translation
+    top5_df['Champion_Name'] = top5_df['Champion_Name'].map(CHAMPION_DICT).fillna(top5_df['Champion_Name'])
 
-# 4. Core DA Task: Data Visualization!
-# Split the layout into two columns for better UI
-col1, col2 = st.columns(2) 
+    col1, col2 = st.columns(2) 
 
-with col1:
-    st.subheader("🏆 Top 5 Champions Data")
-    # Display the raw cleaned data
-    st.dataframe(top5_df, use_container_width=True) 
+    with col1:
+        st.subheader("🏆 Top 5 Champions Data")
+        st.dataframe(top5_df, use_container_width=True) 
 
-with col2:
-    st.subheader("📊 Total Views Bar Chart")
-    # Prepare data for the bar chart by setting the index to Champion_Name (X-axis)
-    chart_data = top5_df.set_index('Champion_Name')['Bilibili_Total_Views']
-    # Render the bar chart in one line of code!
-    st.bar_chart(chart_data)
+    with col2:
+        st.subheader("📊 Total Views Bar Chart")
+        chart_data = top5_df.set_index('Champion_Name')['Bilibili_Total_Views']
+        st.bar_chart(chart_data) 
+
+except Exception as e:
+    st.error(f"❌ Failed to connect or fetch data from Snowflake: {e}")
 
 # ====================================================================
 # 🚀 Phase 3: Data Science (Machine Learning Prediction)
 # ====================================================================
-import numpy as np
-from sklearn.linear_model import LinearRegression
-
 st.divider() 
 st.subheader("🤖 Future Trend Prediction (Machine Learning)")
-st.markdown("Utilizing a **Linear Regression** model to forecast the top champion's future views based on historical scraped data.")
+st.markdown("Utilizing a **Linear Regression** model to forecast the top champion's future views based on historical data.")
 
-# 1. Re-establish database connection to fetch historical data
-conn = sqlite3.connect('lol_analysis.db')
+try:
+    # Identify the #1 champion based on all-time highest views
+    top_champ_query = """
+    SELECT "Champion" 
+    FROM BILI_HOT_CHAMPS 
+    GROUP BY "Champion" 
+    ORDER BY MAX("Bili_Top5_Views") DESC 
+    LIMIT 1
+    """
+    top_champ_raw_name = pd.read_sql_query(top_champ_query, conn).iloc[0]['Champion']
 
-# Identify the #1 champion based on all-time highest views
-top_champ_query = """
-SELECT Champion 
-FROM bili_hot_champs 
-GROUP BY Champion 
-ORDER BY MAX(Bili_Top5_Views) DESC 
-LIMIT 1
-"""
-# Fetch the Chinese name for database querying
-top_champ_raw_name = pd.read_sql_query(top_champ_query, conn).iloc[0]['Champion']
+    # Extract historical timeline for this specific champion
+    history_query = f"""
+    SELECT "scrape_date", "Bili_Top5_Views" 
+    FROM BILI_HOT_CHAMPS 
+    WHERE "Champion" = '{top_champ_raw_name}'
+    ORDER BY "scrape_date" ASC
+    """
+    history_df = pd.read_sql_query(history_query, conn)
 
-# 2. Extract historical timeline for this specific champion
-history_query = f"""
-SELECT scrape_date, Bili_Top5_Views 
-FROM bili_hot_champs 
-WHERE Champion = '{top_champ_raw_name}'
-ORDER BY scrape_date ASC
-"""
-history_df = pd.read_sql_query(history_query, conn)
-conn.close()
+    top_champ_display_name = CHAMPION_DICT.get(top_champ_raw_name, top_champ_raw_name)
 
-# Map the champion name to English for UI presentation
-top_champ_display_name = CHAMPION_DICT.get(top_champ_raw_name, top_champ_raw_name)
+    if len(history_df) > 1:
+        history_df['Time_Index'] = range(len(history_df))
+        X_train = history_df[['Time_Index']]
+        y_train = history_df['Bili_Top5_Views']
 
-# 3. Proceed with Machine Learning ONLY if we have enough historical data points
-if len(history_df) > 1:
-    # Prepare features (X) and target (y) for the model
-    # X-axis: Time sequence (0, 1, 2, 3...)
-    history_df['Time_Index'] = range(len(history_df))
-    X_train = history_df[['Time_Index']]
-    y_train = history_df['Bili_Top5_Views']
+        model = LinearRegression()
+        model.fit(X_train, y_train)
 
-    # Initialize and train the Linear Regression model
-    model = LinearRegression()
-    model.fit(X_train, y_train)
+        future_steps = 3
+        last_index = len(history_df) - 1
+        X_future = pd.DataFrame({'Time_Index': range(last_index + 1, last_index + 1 + future_steps)})
+        y_future_pred = model.predict(X_future)
 
-    # 4. Forecast the trend for the next 3 intervals
-    future_steps = 3
-    last_index = len(history_df) - 1
-    X_future = pd.DataFrame({'Time_Index': range(last_index + 1, last_index + 1 + future_steps)})
-    y_future_pred = model.predict(X_future)
+        plot_data = pd.DataFrame({
+            'Actual_Views': y_train.tolist() + [np.nan] * future_steps,
+            'Predicted_Views': [np.nan] * len(history_df) + y_future_pred.tolist()
+        })
+        
+        plot_data.loc[last_index, 'Predicted_Views'] = plot_data.loc[last_index, 'Actual_Views']
 
-    # 5. Construct a consolidated DataFrame for visualization
-    plot_data = pd.DataFrame({
-        'Actual_Views': y_train.tolist() + [np.nan] * future_steps,
-        'Predicted_Views': [np.nan] * len(history_df) + y_future_pred.tolist()
-    })
-    
-    # Bridge the gap: connect the last actual point to the first predicted point
-    plot_data.loc[last_index, 'Predicted_Views'] = plot_data.loc[last_index, 'Actual_Views']
+        st.write(f"📈 Predictive Growth Trajectory for **{top_champ_display_name}**")
+        st.line_chart(plot_data)
+    else:
+        st.warning(f"⚠️ Not enough historical data for {top_champ_display_name} to run the ML model.")
 
-    # 6. Render the predictive line chart
-    st.write(f"📈 Predictive Growth Trajectory for **{top_champ_display_name}**")
-    st.line_chart(plot_data)
-
-else:
-    st.warning(f"⚠️ Not enough historical data for {top_champ_display_name} to run the ML model. Keep the scraper running for a few more days!")
+except Exception as e:
+    st.error(f"❌ ML Model encountered an error: {e}")
