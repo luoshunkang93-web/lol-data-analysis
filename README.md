@@ -1,5 +1,7 @@
 <img width="2559" height="1398" alt="image" src="https://github.com/user-attachments/assets/295bd641-9369-449a-93a6-d8b9ed4beefb" />
 
+# Note: Hosted on free cloud tier, initial loading may take 30-60 seconds. See screenshots above.
+
 # 🎮 League of Legends: End-to-End Data Analytics Pipeline
 
 ## 🚀 Project Overview
