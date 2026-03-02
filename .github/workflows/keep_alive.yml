@@ -1,0 +1,17 @@
+name: Streamlit Keep-Alive
+
+on:
+  schedule:
+    # Runs at 00:00 and 12:00 UTC every day (Twice a day)
+    - cron: "0 0,12 * * *"
+  workflow_dispatch:
+
+jobs:
+  ping-dashboard:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send GET request to Streamlit App
+        run: |
+          echo "Pinging Streamlit Dashboard..."
+          curl -s -o /dev/null -w "HTTP Status: %{http_code}\n" https://lol-insights-boston.streamlit.app/
+          echo "Ping successful!"
