@@ -84,7 +84,8 @@ try:
     top_champ_query = """
     SELECT "Champion" 
     FROM BILI_HOT_CHAMPS 
-    GROUP BY "Champion" 
+    GROUP BY "Champion"
+    HAVING COUNT("scrape_date") > 1 
     ORDER BY MAX("Bili_Top5_Views") DESC 
     LIMIT 1
     """
