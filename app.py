@@ -32,7 +32,7 @@ try:
     
     # Note: Double quotes are used for column names to handle case-sensitivity from Pandas export
     sql_query = """
-    WITH Latest_Bili_Data AS (
+        WITH Latest_Bili_Data AS (
         SELECT "Champion", MAX("Bili_Top5_Views") AS Max_Views
         FROM BILI_HOT_CHAMPS
         GROUP BY "Champion"
@@ -40,17 +40,21 @@ try:
     Clean_Riot_Stats AS (
         SELECT DISTINCT "Champion", "Tags", "Difficulty"
         FROM RIOT_STATS
+    ),
+    Ranked_Champions AS (
+        SELECT
+            v."Champion" AS "Champion_Name",
+            r."Tags" AS "Role_Tags",
+            r."Difficulty" AS "Difficulty_Level",
+            v.Max_Views AS "Bilibili_Total_Views",
+            DENSE_RANK() OVER(ORDER BY v.Max_Views DESC) AS view_rank
+        FROM Latest_Bili_Data v
+        INNER JOIN Clean_Riot_Stats r
+            ON v."Champion" = r."Champion"
     )
-    SELECT 
-        v."Champion" AS "Champion_Name",
-        r."Tags" AS "Role_Tags",
-        r."Difficulty" AS "Difficulty_Level",
-        v.Max_Views AS "Bilibili_Total_Views"
-    FROM Latest_Bili_Data v
-    INNER JOIN Clean_Riot_Stats r
-        ON v."Champion" = r."Champion"
-    ORDER BY v.Max_Views DESC
-    LIMIT 5;
+    SELECT "Champion_Name", "Role_Tags", "Difficulty_Level", "Bilibili_Total_Views"
+    FROM Ranked_Champions
+    WHERE view_rank <= 5;
     """
     
     top5_df = pd.read_sql_query(sql_query, conn)
