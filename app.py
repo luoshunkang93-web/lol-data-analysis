@@ -6,6 +6,8 @@ import numpy as np
 from sklearn.linear_model import LinearRegression
 from mappings import CHAMPION_DICT
 
+st.set_page_config(layout="wide")
+
 # ====================================================================
 # 🚀 Phase 1: Dashboard UI Setup
 # ====================================================================
@@ -127,7 +129,7 @@ try:
         plot_data.loc[last_index, 'Predicted_Views'] = plot_data.loc[last_index, 'Actual_Views']
 
         st.write(f"📈 Predictive Growth Trajectory for **{top_champ_display_name}**")
-        st.line_chart(plot_data)
+        st.line_chart(plot_data, use_container_width=True)
     else:
         st.warning(f"⚠️ Not enough historical data for {top_champ_display_name} to run the ML model.")
 
