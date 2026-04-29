@@ -89,10 +89,10 @@ try:
     history_query = """
     SELECT "scrape_date", "Bili_Top5_Views"
     FROM BILI_HOT_CHAMPS
-    WHERE "Champion" = %(champion)s
+    WHERE "Champion" = ?
     ORDER BY "scrape_date" ASC
     """
-    history_df = conn.query(history_query, ttl=600, params={"champion": top_champ_raw_name})
+    history_df = conn.query(history_query, ttl=600, params=[top_champ_raw_name])
 
     top_champ_display_name = CHAMPION_DICT.get(top_champ_raw_name, top_champ_raw_name)
 
