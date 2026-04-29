@@ -1,7 +1,6 @@
 # app.py
 import streamlit as st
 import pandas as pd
-import snowflake.connector
 import numpy as np
 from sklearn.linear_model import LinearRegression
 from mappings import CHAMPION_DICT
@@ -17,21 +16,10 @@ st.markdown("Powered by **Snowflake Cloud Data Warehouse** and Advanced SQL Data
 # ====================================================================
 # 🚀 Phase 2: Cloud Database Connection & Data Extraction
 # ====================================================================
-# Use Streamlit's caching mechanism to optimize cloud compute costs
-@st.cache_resource
-def init_snowflake_connection():
-    return snowflake.connector.connect(
-        user=st.secrets["snowflake"]["user"],
-        password=st.secrets["snowflake"]["password"],
-        account=st.secrets["snowflake"]["account"],
-        warehouse=st.secrets["snowflake"]["warehouse"],
-        database=st.secrets["snowflake"]["database"],
-        schema=st.secrets["snowflake"]["schema"]
-    )
+# st.connection auto-handles token refresh and reconnection on expiry
+conn = st.connection("snowflake")
 
 try:
-    conn = init_snowflake_connection()
-    
     # Note: Double quotes are used for column names to handle case-sensitivity from Pandas export
     sql_query = """
         WITH Latest_Bili_Data AS (
@@ -58,22 +46,22 @@ try:
     FROM Ranked_Champions
     WHERE view_rank <= 5;
     """
-    
-    top5_df = pd.read_sql_query(sql_query, conn)
+
+    top5_df = conn.query(sql_query, ttl=600)
 
     # Dictionary Mapping for English Translation
     top5_df['Champion_Name'] = top5_df['Champion_Name'].map(CHAMPION_DICT).fillna(top5_df['Champion_Name'])
 
-    col1, col2 = st.columns(2) 
+    col1, col2 = st.columns(2)
 
     with col1:
         st.subheader("🏆 Top 5 Champions Data")
-        st.dataframe(top5_df, use_container_width=True) 
+        st.dataframe(top5_df, use_container_width=True)
 
     with col2:
         st.subheader("📊 Total Views Bar Chart")
         chart_data = top5_df.set_index('Champion_Name')['Bilibili_Total_Views']
-        st.bar_chart(chart_data) 
+        st.bar_chart(chart_data)
 
 except Exception as e:
     st.error(f"❌ Failed to connect or fetch data from Snowflake: {e}")
@@ -81,30 +69,30 @@ except Exception as e:
 # ====================================================================
 # 🚀 Phase 3: Data Science (Machine Learning Prediction)
 # ====================================================================
-st.divider() 
+st.divider()
 st.subheader("🤖 Future Trend Prediction (Machine Learning)")
 st.markdown("Utilizing a **Linear Regression** model to forecast the top champion's future views based on historical data.")
 
 try:
     # Identify the #1 champion based on all-time highest views
     top_champ_query = """
-    SELECT "Champion" 
-    FROM BILI_HOT_CHAMPS 
+    SELECT "Champion"
+    FROM BILI_HOT_CHAMPS
     GROUP BY "Champion"
-    HAVING COUNT("scrape_date") > 1 
-    ORDER BY MAX("Bili_Top5_Views") DESC 
+    HAVING COUNT("scrape_date") > 1
+    ORDER BY MAX("Bili_Top5_Views") DESC
     LIMIT 1
     """
-    top_champ_raw_name = pd.read_sql_query(top_champ_query, conn).iloc[0]['Champion']
+    top_champ_raw_name = conn.query(top_champ_query, ttl=600).iloc[0]['Champion']
 
-    # Extract historical timeline for this specific champion
-    history_query = f"""
-    SELECT "scrape_date", "Bili_Top5_Views" 
-    FROM BILI_HOT_CHAMPS 
-    WHERE "Champion" = '{top_champ_raw_name}'
+    # Parametrized query prevents SQL injection from champion name
+    history_query = """
+    SELECT "scrape_date", "Bili_Top5_Views"
+    FROM BILI_HOT_CHAMPS
+    WHERE "Champion" = %(champion)s
     ORDER BY "scrape_date" ASC
     """
-    history_df = pd.read_sql_query(history_query, conn)
+    history_df = conn.query(history_query, ttl=600, params={"champion": top_champ_raw_name})
 
     top_champ_display_name = CHAMPION_DICT.get(top_champ_raw_name, top_champ_raw_name)
 
@@ -125,7 +113,7 @@ try:
             'Actual_Views': y_train.tolist() + [np.nan] * future_steps,
             'Predicted_Views': [np.nan] * len(history_df) + y_future_pred.tolist()
         })
-        
+
         plot_data.loc[last_index, 'Predicted_Views'] = plot_data.loc[last_index, 'Actual_Views']
 
         st.write(f"📈 Predictive Growth Trajectory for **{top_champ_display_name}**")
