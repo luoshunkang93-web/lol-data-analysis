@@ -3,7 +3,6 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 from sklearn.linear_model import LinearRegression
-from mappings import CHAMPION_DICT
 
 st.set_page_config(layout="wide")
 
@@ -49,9 +48,6 @@ try:
 
     top5_df = conn.query(sql_query, ttl=600)
 
-    # Dictionary Mapping for English Translation
-    top5_df['Champion_Name'] = top5_df['Champion_Name'].map(CHAMPION_DICT).fillna(top5_df['Champion_Name'])
-
     col1, col2 = st.columns(2)
 
     with col1:
@@ -94,7 +90,7 @@ try:
     """
     history_df = conn.query(history_query, ttl=600, params=[top_champ_raw_name])
 
-    top_champ_display_name = CHAMPION_DICT.get(top_champ_raw_name, top_champ_raw_name)
+    top_champ_display_name = top_champ_raw_name
 
     if len(history_df) > 1:
         history_df['Time_Index'] = range(len(history_df))
