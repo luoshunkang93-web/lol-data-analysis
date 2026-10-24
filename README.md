@@ -12,7 +12,7 @@ This project is an automated, end-to-end data pipeline that scrapes, processes, 
 ### 1. Data Engineering (DE)
 * **Automated Ingestion:** Python scrapers pull daily champion attributes from the Riot Games Data Dragon API and viewership metrics from the Bilibili search API.
 * **Cloud Data Warehouse:** A Star Schema on **Snowflake** separates dynamic metrics (fact table) from champion attributes (dimension table). The project started on local SQLite and was later migrated to Snowflake for a storage-compute separated architecture (`migrate_to_cloud.py`).
-* **CI/CD Automation:** **GitHub Actions** (`daily_update.yml`) runs the pipeline daily with credentials injected from GitHub Secrets. Success and failure notifications are pushed to **Discord** via webhook. A second workflow (`keep_alive.yml`) pings the dashboard to prevent free-tier hibernation.
+* **CI/CD Automation:** **GitHub Actions** (`daily_update.yml`) runs the pipeline daily with credentials injected from GitHub Secrets. Success and failure notifications are pushed to **Discord** via webhook. A second workflow (`keep_alive.yml`) opens the dashboard in a headless browser every 4 hours and clicks the wake-up button if the free tier has put it to sleep.
 
 ### 2. Data Analytics (DA)
 * **Advanced SQL:** CTEs deduplicate the daily-snapshot tables, and a `DENSE_RANK` window function ranks champions so ties are kept instead of being arbitrarily dropped.

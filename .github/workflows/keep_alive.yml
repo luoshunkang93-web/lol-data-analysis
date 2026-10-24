@@ -2,16 +2,26 @@ name: Streamlit Keep-Alive
 
 on:
   schedule:
-    # Runs at 00:00 and 12:00 UTC every day (Twice a day)
-    - cron: "0 0,12 * * *"
+    # Runs every 4 hours, well inside Streamlit Community Cloud's 12-hour idle limit
+    - cron: "17 */4 * * *"
   workflow_dispatch:
 
 jobs:
-  ping-dashboard:
+  visit-dashboard:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
-      - name: Send GET request to Streamlit App
-        run: |
-          echo "Pinging Streamlit Dashboard..."
-          curl -s -o /dev/null -w "HTTP Status: %{http_code}\n" https://lol-insights-boston.streamlit.app/
-          echo "Ping successful!"
+      - name: Checkout Repository
+        uses: actions/checkout@v5
+
+      - name: Setup Python Environment
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      - name: Install Selenium
+        # Uses the Chrome already installed on the runner; Selenium Manager fetches the matching driver.
+        run: pip install selenium==4.25.0
+
+      - name: Visit Dashboard and Wake It If Asleep
+        run: python .github/scripts/wake_dashboard.py
