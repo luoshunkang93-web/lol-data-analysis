@@ -9,8 +9,8 @@ st.set_page_config(layout="wide")
 # ====================================================================
 # 🚀 Phase 1: Dashboard UI Setup
 # ====================================================================
-st.title("🔥 League of Legends: Cloud-Native Insights")
-st.markdown("Powered by **Snowflake Cloud Data Warehouse** and Advanced SQL Data Modeling.")
+st.title("League of Legends Champion Popularity Dashboard")
+st.markdown("Daily Bilibili video views for a 10-champion demo set, stored in **Snowflake** and queried with SQL. Views are used as a rough proxy for player interest.")
 
 # ====================================================================
 # 🚀 Phase 2: Cloud Database Connection & Data Extraction
@@ -51,11 +51,11 @@ try:
     col1, col2 = st.columns(2)
 
     with col1:
-        st.subheader("🏆 Top 5 Champions Data")
+        st.subheader("Top 5 Tracked Champions by Bilibili Views")
         st.dataframe(top5_df, use_container_width=True)
 
     with col2:
-        st.subheader("📊 Total Views Bar Chart")
+        st.subheader("Bilibili Views (sum of top 5 search results)")
         chart_data = top5_df.set_index('Champion_Name')['Bilibili_Total_Views']
         st.bar_chart(chart_data)
 
@@ -63,11 +63,11 @@ except Exception as e:
     st.error(f"❌ Failed to connect or fetch data from Snowflake: {e}")
 
 # ====================================================================
-# 🚀 Phase 3: Data Science (Machine Learning Prediction)
+# 🚀 Phase 3: Simple Linear Trend Line
 # ====================================================================
 st.divider()
-st.subheader("🤖 Future Trend Prediction (Machine Learning)")
-st.markdown("Utilizing a **Linear Regression** model to forecast the top champion's future views based on historical data.")
+st.subheader("Trend Line for the Top Champion")
+st.markdown("A straight line fitted with linear regression to the top champion's recorded views, extended 3 data points ahead. It shows the overall direction only and is not a forecasting model.")
 
 try:
     # Identify the #1 champion based on all-time highest views
@@ -107,15 +107,15 @@ try:
 
         plot_data = pd.DataFrame({
             'Actual_Views': y_train.tolist() + [np.nan] * future_steps,
-            'Predicted_Views': [np.nan] * len(history_df) + y_future_pred.tolist()
+            'Trend_Line': [np.nan] * len(history_df) + y_future_pred.tolist()
         })
 
-        plot_data.loc[last_index, 'Predicted_Views'] = plot_data.loc[last_index, 'Actual_Views']
+        plot_data.loc[last_index, 'Trend_Line'] = plot_data.loc[last_index, 'Actual_Views']
 
-        st.write(f"📈 Predictive Growth Trajectory for **{top_champ_display_name}**")
+        st.write(f"Recorded views and linear trend for **{top_champ_display_name}**")
         st.line_chart(plot_data, use_container_width=True)
     else:
-        st.warning(f"⚠️ Not enough historical data for {top_champ_display_name} to run the ML model.")
+        st.warning(f"⚠️ Not enough historical data for {top_champ_display_name} to draw a trend line.")
 
 except Exception as e:
-    st.error(f"❌ ML Model encountered an error: {e}")
+    st.error(f"❌ Trend line could not be drawn: {e}")
